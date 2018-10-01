@@ -1,0 +1,139 @@
+- hosts : localhost
+  sudo : yes
+
+  vars : 
+    download_url: http://packages.elastic.co/GPG-KEY-elasticsearch
+    kibana_dashboard_url: https://download.elastic.co/beats/dashboards/beats-dashboards-1.1.0.zip
+    filebeat_index_url: https://gist.githubusercontent.com/thisismitch/3429023e8438cc25b86c/raw/d8c479e2a1adcea8b1fe86570e42abab0f10f364/filebeat-index-template.json
+    script_folder: /home/vagrant/elk-ansible/
+
+
+
+  tasks :
+ 
+     - name: Install wget
+       yum:
+         name: wget
+         state: installed
+
+     - name : ADD GPG key into rpm
+       rpm_key:
+         state: present
+         key: '{{ download_url }}'
+
+     - name: Create new repository for Elastic Search, kibana and Logstash
+       script: "{{ script_folder }}createrepo.sh"
+
+     - name : Add the epel repo in YUM
+       yum:
+        name: epel-release
+        state: installed
+
+     - name: Install All the applications
+       yum: pkg='{{ item }}' state=installed
+       with_items:
+         - java-1.8.0-openjdk
+         - elasticsearch
+         - kibana
+         - nginx
+         - httpd-tools
+         - logstash
+         - unzip
+         - filebeat
+
+     - name: Edit the Elastic search Configuration file
+       script: '{{ script_folder }}elastic-config.sh'
+
+     - name: Start the Elastic search service
+       service:
+         name: elasticsearch
+         state: started
+
+     - name: Start the Elasticsearch Service once the machine boots
+       service:
+          name: elasticsearch
+          enabled: yes
+          state: started
+
+     - name: Edit the Kibana Configuration file
+       script: '{{ script_folder }}kibana-config.sh'
+
+     - name : Start the kibana service
+       service:
+         name: kibana
+         state: started
+
+     - name: Start the Kibana Service once the machine boots
+       service:
+          name: kibana
+          enabled: yes
+
+     - name: Configuring Kibana.conf
+       script: '{{ script_folder }}kibana-setup.sh'
+
+     - name: Start the nginx service
+       service: 
+          name: nginx.service
+          state: started
+
+     - name: Enable the nginx service
+       service:
+          name: nginx.service
+          enabled: yes
+
+     - name: Configure the DNS and genarate the SSL Cert and private key
+       script: '{{ script_folder }}dns-conf.sh'
+
+     - name: Configure Logstash
+       script: '{{ script_folder }}logstash-config.sh'
+
+     - name: Start the Logstash service
+       service: 
+          name: logstash 
+          state: started
+
+     - name: Start the sevice when machine boots
+       service:
+          name: logstash
+          enabled: yes
+
+     - name: Load Kibana Dashboard
+       get_url:
+           url: '{{ kibana_dashboard_url }}'
+           dest: /usr/local/      
+
+     - name: Unzip the file
+       unarchive:
+           src: /usr/local/beats-dashboards-1.1.0.zip
+           dest: /usr/local/
+   
+     - name: Load the sample Dashboard
+       script: /usr/local/beats-dashboards-1.1.0/load.sh
+
+
+     - name: Load Filebeat Index templete
+       get_url:
+           url: "{{ filebeat_index_url }}"
+           dest: /usr/local/
+
+     - name: Load the templete
+       shell: "curl -XPUT 'http://localhost:9200/_template/filebeat?pretty' -d@/usr/local/filebeat-index-template.json"
+       register: filebeat_templete
+
+     - debug: msg='{{ filebeat_templete.stdout }}'
+
+     - name: Configure Filebeat.yml
+       script: '{{ script_folder }}filebeat-config.sh'
+
+
+     - name: Start the Filebeat service
+       service:
+         name: filebeat
+         state: started
+ 
+     - name: Start the service when the machine boots
+       service: 
+         name: filbeat
+         enabled: yes
+
+
