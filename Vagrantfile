@@ -10,7 +10,7 @@ Vagrant.configure("2") do |config|
      sudo yum update 
      sudo yum install ansible -y
      sudo yum install git -y
-     git clone https://github.com/arzualam/elk-ansible
+     git clone https://github.com/arzualam/elk-with-vagrant
      ansible-playbook /home/vagrant/elk-ansible/elk-centos.yml
     SCRIPT
   end
